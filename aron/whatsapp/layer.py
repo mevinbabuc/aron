@@ -1,10 +1,10 @@
 from yowsup.layers.interface                           import YowInterfaceLayer, ProtocolEntityCallback
 from yowsup.layers.protocol_messages.protocolentities  import TextMessageProtocolEntity
+from yowsup.layers.protocol_acks.protocolentities import OutgoingAckProtocolEntity
 from yowsup.common.tools import Jid
 import threading
 import logging
 logger = logging.getLogger(__name__)
-
 
 class SendLayer(YowInterfaceLayer):
 
@@ -15,34 +15,25 @@ class SendLayer(YowInterfaceLayer):
     
     def __init__(self):
         super(SendLayer, self).__init__()
-        self.ackQueue = []
-        self.lock = threading.Condition()
+        # self.ackQueue = []
+        # self.lock = threading.Condition()
 
     #call back function when there is a successful connection to whatsapp server
     @ProtocolEntityCallback("success")
     def onSuccess(self, successProtocolEntity):
-        self.lock.acquire()
+        # self.lock.acquire()
         for target in self.getProp(self.__class__.PROP_MESSAGES, []):
             #getProp() is trying to retreive the list of (jid, message) tuples, if none exist, use the default []
             phone, message = target
             messageEntity = TextMessageProtocolEntity(message, to = Jid.normalize(phone))
             #append the id of message to ackQueue list
             #which the id of message will be deleted when ack is received.
-            self.ackQueue.append(messageEntity.getId())
+            # self.ackQueue.append(messageEntity.getId())
             self.toLower(messageEntity)
-        self.lock.release()
+        # self.lock.release()
 
     #after receiving the message from the target number, target number will send a ack to sender(us)
-    @ProtocolEntityCallback("ack")
-    def onAck(self, entity):
-        self.lock.acquire()
-        #if the id match the id in ackQueue, then pop the id of the message out
-        if entity.getId() in self.ackQueue:
-            self.ackQueue.pop(self.ackQueue.index(entity.getId()))
-            
-        if not len(self.ackQueue):
-            self.lock.release()
-            logger.info("Message sent")
-            raise KeyboardInterrupt()
-
-        self.lock.release()
+    @ProtocolEntityCallback("receipt")
+    def onReceipt(self, entity):
+        ack = OutgoingAckProtocolEntity(entity.getId(), "receipt", "delivery")
+        self.toLower(ack)
